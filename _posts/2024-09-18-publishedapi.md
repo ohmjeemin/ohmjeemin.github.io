@@ -1,8 +1,8 @@
 ---
 title: "코틀린의 @PublishedApi 어노테이션에 대해서 알아보자"
 date: 2024-09-18 10:00:00 +/- TTTT
-categories: [Dev, git]
-tags: [git]
+categories: [Dev, Kotlin]
+tags: [Kotlin]
 pin: true
 ---
 
