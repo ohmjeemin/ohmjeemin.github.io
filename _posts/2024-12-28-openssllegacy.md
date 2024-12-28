@@ -1,35 +1,39 @@
 ---
-title: "코틀린의 @PublishedApi 어노테이션에 대해서 알아보자"
-date: 2024-09-18 10:00:00 +/- TTTT
-categories: [Dev, Kotlin]
-tags: [Kotlin]
+title: "NodeJS에서 SEED128 암호화 적용 시 error:0308010C:digital envelope routines::unsupported 발생"
+date: 2024-12-28 10:00:00 +/- TTTT
+categories: [Dev, NodeJS]
+tags: [NodeJS]
 pin: true
 ---
 
-Kotlin의 `inline`함수는 함수 호출을 성능 향상을 위해 컴파일 시점에 함수 호출을 실제로 함수의 바이트 코드로 교체합니다. 그러나 인라인 함수 내에서 가시성이 `private`이나 `internal`인 멤버를 사용할 때, 컴파일러가 접근 제어 문제를 일으킬 수 있습니다. 이 때 `@PublishedApi`어노테이션을 사용하여 해당 멤버의 가시성을 `public`으로 한정적으로 노출시킴으로써 문제를 해결합니다. `@PublishedApi`는 가시성 자체를 완전히 `public`으로 바꾸지 않습니다. 그러므로 다른 모듈에서는 여전히 접근할 수 없습니다.
+## 문제 발생
 
+우체국 택배 송장 발급 기능을 추가하기 위해 우체국 open api를 적용하고 있었다.
+송장 발급 api 요청 시 데이터를 SEED128 암호화해서 보내야 하기 때문에 SEED128 암호화 코드를 실행시켰더니,
+다음과 같은 에러가 발생하며 정상 작동하지 않았다.
 
-## 사용 에시
-```kotlin
-class Calculator {
-    inline fun sum(a: Int, b: Int): Int {
-        return internalSum(a, b)
-    }
-
-    @PublishedApi
-    internal fun internalSum(a: Int, b: Int): Int {
-        return a + b
-    }
+```Error: Error: error:0308010C:digital envelope routines::unsupported
+    at Cipheriv.createCipherBase (node:internal/crypto/cipher:121:19)
+    at Cipheriv.createCipherWithIV (node:internal/crypto/cipher:133:3)
+    at new Cipheriv (node:internal/crypto/cipher:234:3)
+    at createCipheriv (node:crypto:143:10)
+    at SEED128Service.seedEncrypt (/Users/min/dev/esim-crm-api/src/orders/seed128.ts:28:38)
+    at bootstrap (/Users/min/dev/esim-crm-api/src/main.ts:67:46)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  library: 'digital envelope routines',
+  reason: 'unsupported',
+  code: 'ERR_OSSL_EVP_UNSUPPORTED'
 }
-
 ```
 
+## 원인
 
-`inline`함수 내에서 `private`나 `internal` 멤버를 사용할 때 `@PublishedApi` 어노테이션을 사용하지 않으면 다음과 같은 에러가 발생합니다. 
+`error:0308010C:digital envelope routines::unsupported` 오류는 주로 Node.js 버전과 사용 중인 암호화 알고리즘 간의 호환성 문제에서 발생한다. 이 문제는 Node.js 17 이상 버전에서 OpenSSL 3가 기본으로 사용되면서, 일부 암호화 알고리즘(특히 오래된 알고리즘) 지원이 제한되거나 비활성화된 경우에 발생한 것이였다. 내가 사용하려한 SEED128 알고리즘이 레거시로 판단된 것이다.
 
-```shell
-Public-API inline function cannot access non-public-API 'internal final fun internalSum(a: Int, b: Int): Int defined in Calculator'
-```
+- openSSL: 네트워크를 통한 데이터 통신을 할 때 쓰이는 프로토콜인 TLS와 SSL을 오픈소스로 해놓은 것
+- 내 node 버전: 20
 
-## 참고 자료
-- [코틀린 공식 문서](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-published-api/)
+## 해결방안
+
+NODE_OPTIONS 환경 변수를 --openssl-legacy-provider로 설정하면 레거시 알고리즘도 공급되도록 변경된다.
+적용했더니 정상적으로 작동한 것을 확인했다.
