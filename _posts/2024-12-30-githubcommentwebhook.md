@@ -1,40 +1,40 @@
 ---
-title: "NodeJS에서 SEED128 암호화 적용 시 error:0308010C:digital envelope routines::unsupported 발생"
-date: 2024-12-28 10:00:00 +/- TTTT
-categories: [Dev, NodeJS]
+title: "github webhook issue_comment와 pull_request_comment는 무엇일까요?"
+date: 2024-12-30 10:00:00 +/- TTTT
+categories: [Dev, GitHub]
 tags: [NodeJS]
 pin: true
 ---
 
-## 문제 발생
+# github PullRequest comment 작성 시, slack 알림 설정
 
-우체국 택배 송장 발급 기능을 구현하기 위해 우체국 Open API를 사용하던 중, 송장 발급 API 요청 시 데이터를 SEED128 알고리즘으로 암호화해야 했습니다.  
-하지만 암호화 코드를 실행했을 때, 아래와 같은 에러가 발생하며 정상적으로 작동하지 않았습니다.
+슬랙 알림을 받으려면 gitHub Setting에서 WebHook을 추가해야 하는데,
+`Which events would you like to trigger this webhook?`에 `Let me select individual events.`을 클릭하면 어떤 이벤트에 대한 알림을 받을 건지 웹훅을 커스텀 할 수 있다.  
+처음에는 `pull_request_review_comment`만 체크했었는데, 이렇게 하니 FileChanged에서 추가한 single comment에 대한 알림만 오고 PullRequest 하단에 comment에 대한 알림이 오지 않았다.
 
-```javascript
-Error: Error: error:0308010C:digital envelope routines::unsupported
-    at Cipheriv.createCipherBase (node:internal/crypto/cipher:121:19)
-    at Cipheriv.createCipherWithIV (node:internal/crypto/cipher:133:3)
-    at new Cipheriv (node:internal/crypto/cipher:234:3)
-    at createCipheriv (node:crypto:143:10)
-    at SEED128Service.seedEncrypt (/Users/min/dev/esim-crm-api/src/orders/seed128.ts:28:38)
-    at bootstrap (/Users/min/dev/esim-crm-api/src/main.ts:67:46)
-    at processTicksAndRejections (node:internal/process/task_queues:105:5) {
-  library: 'digital envelope routines',
-  reason: 'unsupported',
-  code: 'ERR_OSSL_EVP_UNSUPPORTED'
-}
-```
+webhook 요청 로그를 보니 Pull Request 하단에서 comment를 작성할 시 `webhook Internal Server Error` 발생하고 있었다.
 
-## 원인
+### 원인
 
-이 오류는 Node.js 17 이상 버전에서 기본으로 사용하는 OpenSSL 3와의 호환성 문제로 발생합니다. OpenSSL 3에서는 일부 암호화 알고리즘, 특히 오래된 알고리즘(레거시 알고리즘)이 제한되거나 비활성화되었습니다.
-SEED128 알고리즘은 OpenSSL에서 레거시 알고리즘으로 간주되어 지원되지 않아 이 에러가 발생한 것입니다.
+pull_request_comment 만 추가해놨기 때문이다.
 
-OpenSSL: 네트워크 데이터 통신을 위한 TLS/SSL 프로토콜의 오픈소스 구현
-Node.js 버전: 20
+**comment는 두 가지로 구분된다.**
 
-## 해결방안
+1. issue_comment
+2. pull_request_review_comment
 
-NODE_OPTIONS 환경 변수에 `--openssl-legacy-provider`를 추가하여 레거시 알고리즘 지원을 활성화하면 문제를 해결할 수 있습니다.  
-해당 옵션을 적용한 결과, 암호화가 정상적으로 작동하는 것을 확인했습니다.
+Pull Request 하단에서 **"Add a comment"**를 통해 작성된 코멘트는 issue 필드에 포함되어 온다.
+이는 Pull Request 자체가 GitHub의 구조상 이슈의 일종으로 취급되기 때문이다.
+
+Pull Request의 "Files changed" 탭에서 작성된 코멘트는 pull_request 필드에 포함되어 온다.
+이는 파일 변경 사항과 직접적으로 연결되며, pull_request_review_comment 이벤트로 트리거된다.
+
+**요약**
+
+- 하단 일반 코멘트 → issue 필드에 데이터 포함.
+- 파일 변경사항 코멘트 → pull_request 필드에 데이터 포함.
+
+### 해결방안
+
+`Let me select individual events.`에 `issue_comment`도 체크하고,  
+issue와 pull_request를 둘다 수용할 수 있도록 CommentEventResponseDto를 수정하였다.
